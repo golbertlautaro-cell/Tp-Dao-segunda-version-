@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Reservar cancha</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  </head>
+  <body class="bg-light">
+    <div class="container py-4">
+      <h1 class="mb-4">Reservar Cancha</h1>
+
+      <div class="card mb-4">
+        <div class="card-body">
+          <form id="reserva-form">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <label class="form-label">Cliente</label>
+                <select id="select-cliente" class="form-select" required>
+                  <option value="">Seleccionar cliente...</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Cancha</label>
+                <select id="select-cancha" class="form-select" required>
+                  <option value="">Seleccionar cancha...</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Fecha</label>
+                <input type="date" id="fecha" class="form-control" required>
+              </div>
+
+              <div class="col-md-3">
+                <label class="form-label">Hora inicio</label>
+                <input type="time" id="hora_inicio" class="form-control" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Hora fin</label>
+                <input type="time" id="hora_fin" class="form-control" required>
+              </div>
+
+              <div class="col-md-3">
+                <div class="form-check mt-4">
+                  <input class="form-check-input" type="checkbox" id="usa_iluminacion">
+                  <label class="form-check-label">Usar iluminación</label>
+                </div>
+              </div>
+
+              <div class="col-12">
+                <h5>Servicios adicionales</h5>
+                <div id="servicios-list" class="d-flex gap-3 flex-wrap">
+                  <!-- Checkboxes añadidos por JS -->
+                </div>
+              </div>
+
+              <div class="col-12 mt-3">
+                <button class="btn btn-primary" id="btn-submit">Reservar</button>
+                <button type="button" class="btn btn-secondary" id="btn-reset">Limpiar</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div id="result" class="mt-3"></div>
+    </div>
+
+    <script>
+      const API_CLIENTES = '/api/clientes';
+      const API_CANCHAS = '/api/canchas';
+      const API_SERVICIOS = '/api/servicios'; // puede no existir si no hay endpoint; manejamos 404
+      const API_RESERVAS = '/api/reservas';
+
+      async function fetchJson(url){
+        try{
+          const res = await fetch(url);
+          if(!res.ok) return null;
+          return await res.json();
+        }catch(e){
+          return null;
+        }
+      }
+
+      async function loadSelects(){
+        const clientes = await fetchJson(API_CLIENTES) || [];
+        const canchas = await fetchJson(API_CANCHAS) || [];
+        const servicios = await fetchJson(API_SERVICIOS) || [];
+
+        const selCliente = document.getElementById('select-cliente');
+        clientes.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id_cliente;
+          opt.textContent = `${c.nombre} ${c.apellido} (${c.dni})`;
+          selCliente.appendChild(opt);
+        });
+
+        const selCancha = document.getElementById('select-cancha');
+        canchas.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id_cancha;
+          opt.textContent = `${c.nombre} — ${c.tipo_deporte || ''} — $${c.precio_hora}`;
+          selCancha.appendChild(opt);
+        });
+
+        const serviciosDiv = document.getElementById('servicios-list');
+        if(servicios.length === 0){
+          serviciosDiv.innerHTML = '<small class="text-muted">No hay servicios adicionales disponibles</small>';
+        } else {
+          servicios.forEach(s => {
+            const id = `serv-${s.id_servicio}`;
+            const wrapper = document.createElement('div');
+            wrapper.className = 'form-check';
+            wrapper.innerHTML = `
+              <input class="form-check-input" type="checkbox" value="${s.id_servicio}" id="${id}">
+              <label class="form-check-label" for="${id}">${s.nombre} ($${s.precio_adicional})</label>
+            `;
+            serviciosDiv.appendChild(wrapper);
+          });
+        }
+      }
+
+      document.getElementById('reserva-form').addEventListener('submit', async function(ev){
+        ev.preventDefault();
+        const payload = {
+          id_cliente: parseInt(document.getElementById('select-cliente').value),
+          id_cancha: parseInt(document.getElementById('select-cancha').value),
+          fecha_reserva: document.getElementById('fecha').value,
+          hora_inicio: document.getElementById('hora_inicio').value,
+          hora_fin: document.getElementById('hora_fin').value,
+          usa_iluminacion: document.getElementById('usa_iluminacion').checked,
+          servicios_adicionales: []
+        };
+
+        document.querySelectorAll('#servicios-list input[type=checkbox]:checked').forEach(cb => {
+          payload.servicios_adicionales.push(parseInt(cb.value));
+        });
+
+        const res = await fetch(API_RESERVAS, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+
+        const resultDiv = document.getElementById('result');
+        if(res.status === 201){
+          const data = await res.json();
+          resultDiv.innerHTML = `<div class="alert alert-success">Reserva creada. ID: ${data.id_reserva} — Precio total: $${data.precio_total}</div>`;
+          this.reset();
+        } else if(res.status === 409){
+          const err = await res.json();
+          resultDiv.innerHTML = `<div class="alert alert-warning">Conflicto: ${err.error}</div>`;
+        } else {
+          const err = await res.json();
+          resultDiv.innerHTML = `<div class="alert alert-danger">Error: ${err.error || 'Error al crear la reserva'}</div>`;
+        }
+      });
+
+      document.getElementById('btn-reset').addEventListener('click', function(){
+        document.getElementById('reserva-form').reset();
+        document.getElementById('result').innerHTML = '';
+      });
+
+      // Inicializar selects al cargar la página
+      loadSelects();
+    </script>
+  </body>
+</html>
