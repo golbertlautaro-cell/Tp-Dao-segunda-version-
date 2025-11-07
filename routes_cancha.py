@@ -11,6 +11,12 @@ def cancha_to_dict(c: Cancha):
         'id_cancha': c.id_cancha,
         'nombre': c.nombre,
         'tipo_deporte': c.tipo_deporte,
+        'id_deporte': getattr(c, 'id_deporte', None),
+        'deporte': {
+            'id_deporte': c.deporte.id_deporte,
+            'nombre': c.deporte.nombre,
+            'duracion_minutos': c.deporte.duracion_minutos,
+        } if getattr(c, 'deporte', None) else None,
         'superficie': c.superficie,
         'precio_hora': str(c.precio_hora) if c.precio_hora is not None else None,
         'iluminacion': c.iluminacion,
@@ -126,6 +132,7 @@ def create_cancha():
     cancha = Cancha(
         nombre=nombre,
         tipo_deporte=data.get('tipo_deporte'),
+        id_deporte=data.get('id_deporte'),
         superficie=data.get('superficie'),
         precio_hora=data.get('precio_hora') or 0,
         iluminacion=data.get('iluminacion'),
@@ -144,6 +151,9 @@ def update_cancha(id_cancha):
     for field in ('nombre', 'tipo_deporte', 'superficie', 'precio_hora', 'iluminacion', 'activa'):
         if field in data:
             setattr(cancha, field, data.get(field))
+    # permitir actualizar id_deporte
+    if 'id_deporte' in data:
+        cancha.id_deporte = data.get('id_deporte')
 
     db.session.commit()
     return jsonify(cancha_to_dict(cancha))

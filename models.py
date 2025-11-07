@@ -87,6 +87,8 @@ class Cancha(db.Model):
     id_cancha = db.Column(db.Integer, primary_key=True, autoincrement=True)
     nombre = db.Column(db.String(100), nullable=False)
     tipo_deporte = db.Column(db.String(50), nullable=True)
+    # Nuevo: referencia a tabla de deportes (si se usa catálogo de deportes)
+    id_deporte = db.Column(db.Integer, db.ForeignKey('deportes.id_deporte'), nullable=True)
     superficie = db.Column(db.String(50), nullable=True)
     precio_hora = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     # Precio por hora adicional si se requiere iluminación (opcional)
@@ -110,8 +112,36 @@ class Cancha(db.Model):
         lazy=True
     )
 
+    # Relación a Deporte (si está definido en catálogo)
+    deporte = db.relationship('Deporte', backref='canchas', lazy=True)
+
     def __repr__(self):
         return f"<Cancha {self.id_cancha} {self.nombre}>"
+
+
+class Deporte(db.Model):
+    """Catálogo de deportes y configuración por deporte.
+
+    Campos:
+    - id_deporte: PK
+    - nombre: nombre legible
+    - duracion_minutos: duración típica por partido en minutos
+    
+    """
+    __tablename__ = 'deportes'
+
+    id_deporte = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    nombre = db.Column(db.String(100), nullable=False, unique=True)
+    duracion_minutos = db.Column(db.Integer, nullable=False, default=60)
+
+    # Relación a servicios específicos de este deporte
+    # (la relación inversa la define ServicioAdicional.deporte via backref='servicios_adicionales')
+
+    def __repr__(self):
+        return f"<Deporte {self.id_deporte} {self.nombre} ({self.duracion_minutos}m)>"
+
+
+
 
 
 class HorarioDisponible(db.Model):
@@ -148,6 +178,11 @@ class ServicioAdicional(db.Model):
     nombre = db.Column(db.String(100), nullable=False)
     precio_adicional = db.Column(db.Numeric(10, 2), nullable=False, default=0)
     activo = db.Column(db.Boolean, nullable=False, default=True)
+    # Asociar servicio opcionalmente a un deporte (si es específico para padel/tenis/futbol)
+    id_deporte = db.Column(db.Integer, db.ForeignKey('deportes.id_deporte'), nullable=True)
+
+    # Relación a Deporte (opcional)
+    deporte = db.relationship('Deporte', backref='servicios_adicionales', lazy=True)
 
     # Relación a la tabla pivot ReservaServicio
     reservas_servicios = db.relationship(

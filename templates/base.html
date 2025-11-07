@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}TP-Dao{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head_extra %}{% endblock %}
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+      <div class="container">
+        <a class="navbar-brand fw-bold d-flex align-items-center" href="/ui/dashboard"><i class="bi bi-speedometer2 me-2" aria-hidden="true"></i>TP-Dao</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navMain" aria-controls="navMain" aria-expanded="false" aria-label="Toggle navigation">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navMain">
+          <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
+            <li class="nav-item"><a class="nav-link" href="/ui/reservar"><i class="bi bi-calendar2-plus me-1"></i>Reservar</a></li>
+            <li class="nav-item"><a class="nav-link" href="/ui/canchas"><i class="bi bi-house-fill me-1"></i>Canchas</a></li>
+            <li class="nav-item"><a class="nav-link" href="/ui/clientes"><i class="bi bi-people-fill me-1"></i>Clientes</a></li>
+            <li class="nav-item"><a class="nav-link" href="/ui/deportes"><i class="bi bi-trophy-fill me-1"></i>Deportes</a></li>
+            <li class="nav-item"><a class="nav-link" href="/ui/reportes"><i class="bi bi-bar-chart-fill me-1"></i>Reportes</a></li>
+            <li class="nav-item"><a class="nav-link" href="/ui/pagos"><i class="bi bi-wallet2 me-1"></i>Pagos</a></li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <main class="py-4">
+      <div class="container">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+
+    <footer class="bg-white border-top py-3">
+      <div class="container text-center text-muted small">&copy; {{ current_year or "2025" }} - TP-Dao · Proyecto</div>
+    </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="{{ url_for('static', filename='js/ui.js') }}"></script>
+  {% block scripts %}{% endblock %}
+    <!-- Floating back button (bottom-left) -->
+    <button id="floating-back" class="btn btn-outline-primary floating-back" title="Volver" aria-label="Volver">
+      <i class="bi bi-arrow-left"></i>
+      <span class="d-none d-md-inline"> Volver</span>
+    </button>
+  </body>
+</html>

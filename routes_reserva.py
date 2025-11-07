@@ -9,8 +9,10 @@ from models import (
     ServicioAdicional,
     ReservaServicio,
     Partido,
+    Pago,
+    MetodoPago,
 )
-from datetime import datetime, date as _date
+from datetime import datetime, date as _date, timedelta
 from decimal import Decimal
 
 bp = Blueprint('reservas', __name__)
@@ -36,21 +38,28 @@ def create_reserva():
     except Exception:
         return jsonify({'error': 'Campos inválidos o formato incorrecto. fecha: YYYY-MM-DD, horas: HH:MM'}), 400
 
-    if hora_inicio >= hora_fin:
-        return jsonify({'error': 'hora_inicio debe ser anterior a hora_fin'}), 400
+    # Permitimos reservas que crucen medianoche. El intervalo válido es desde
+    # fecha_reserva 10:00 (inclusive) hasta fecha_reserva+1 01:00 (inclusive).
+    # Además la duración requerida depende del deporte de la cancha.
+    # Permitimos slots cada 30 minutos (00 o 30). No forzamos minutos == 00.
+    if hora_inicio.minute not in (0, 30) or hora_fin.minute not in (0, 30):
+        return jsonify({'error': 'Las horas deben tener minutos 00 o 30 (ej. 07:00, 07:30).'}), 400
 
-    # Validar que las horas sean "en punto" y la duración sea un número entero de horas
     dt_start = datetime.combine(fecha_reserva, hora_inicio)
     dt_end = datetime.combine(fecha_reserva, hora_fin)
-    # minutos deben ser 0
-    if hora_inicio.minute != 0 or hora_fin.minute != 0:
-        return jsonify({'error': 'Las horas deben ser en punto (ej. 07:00, 08:00). No se permiten minutos distintos de 00.'}), 400
-    # rango permitido: 09:00 - 23:00 (hora inicio >= 9, hora fin <= 23)
-    if hora_inicio.hour < 9 or hora_fin.hour > 23:
-        return jsonify({'error': 'Horario fuera de rango. Las reservas sólo pueden realizarse entre 09:00 y 23:00.'}), 400
-    # duración EXACTA de 1 hora
-    if (dt_end - dt_start).total_seconds() != 3600:
-        return jsonify({'error': 'La reserva debe tener una duración EXACTA de 1 hora (ej. 09:00-10:00).'}), 400
+    # si hora_fin es menor o igual a hora_inicio, asumir que terminó al día siguiente
+    if dt_end <= dt_start:
+        dt_end = dt_end + timedelta(days=1)
+
+    # Rango global permitido: [fecha_reserva 10:00, fecha_reserva+1 01:00]
+    window_start = datetime.combine(fecha_reserva, datetime.strptime('10:00', '%H:%M').time())
+    window_end = datetime.combine(fecha_reserva + timedelta(days=1), datetime.strptime('01:00', '%H:%M').time())
+    if dt_start < window_start or dt_end > window_end:
+        return jsonify({'error': 'Horario fuera de rango. Las reservas sólo pueden realizarse entre 10:00 y 01:00 (incluye pasada de medianoche).'}), 400
+
+    # Además limitar hora de inicio máxima a 23:00 (no permitimos iniciar después de las 23:00)
+    if dt_start.time() > datetime.strptime('23:00', '%H:%M').time():
+        return jsonify({'error': 'La hora de inicio no puede ser posterior a las 23:00.'}), 400
 
     # Verificar existencia de cliente y cancha
     cliente = Cliente.query.get(id_cliente)
@@ -60,6 +69,32 @@ def create_reserva():
     cancha = Cancha.query.get(id_cancha)
     if not cancha or not cancha.activa:
         return jsonify({'error': 'Cancha no existe o no está activa'}), 400
+
+    # Determinar duración esperada por deporte: preferir catálogo `Deporte` si la cancha lo referencia
+    if getattr(cancha, 'deporte', None):
+        try:
+            duracion_minutos = int(cancha.deporte.duracion_minutos or 60)
+        except Exception:
+            duracion_minutos = 60
+    else:
+        # Fallback a mapeo por texto para compatibilidad
+        deporte = (cancha.tipo_deporte or '').strip().lower()
+        DURACIONES_MIN = {
+            'padel': 60,
+            'pádel': 60,
+            'tenis': 120,
+            'futbol': 90,
+            'fútbol': 90,
+            'basket': 60,
+            'basquet': 60,
+            'baloncesto': 60,
+        }
+        duracion_minutos = DURACIONES_MIN.get(deporte, 60)
+
+    # Validar que la duración solicitada coincida con la duración esperada para el deporte
+    expected_end = dt_start + timedelta(minutes=duracion_minutos)
+    if expected_end != dt_end:
+        return jsonify({'error': f'La reserva para {cancha.tipo_deporte or "este deporte"} debe durar {duracion_minutos} minutos. Hora esperada de fin: {expected_end.time().strftime("%H:%M")}' }), 400
 
     # Validar que exista un estado por defecto (Pendiente) para asignar
     estado_default = EstadoReserva.query.filter_by(nombre='Pendiente').first() or EstadoReserva.query.first()
@@ -83,25 +118,42 @@ def create_reserva():
             return jsonify({'error': 'HORARIO_DISPONIBLE: La cancha no tiene un horario disponible que cubra el intervalo solicitado'}), 409
 
     # Verificar solapamientos con otras reservas en la misma cancha y fecha
-    overlapping = Reserva.query.filter(
+    # Verificar solapamientos con otras reservas: para soportar cruces de medianoche normalizamos intervalos
+    candidate_dates = [fecha_reserva, fecha_reserva - timedelta(days=1)]
+    existing_reservas = Reserva.query.filter(
         Reserva.id_cancha == id_cancha,
-        Reserva.fecha_reserva == fecha_reserva,
-        # no (existing.hora_fin <= inicio or existing.hora_inicio >= fin)
-        Reserva.hora_fin > hora_inicio,
-        Reserva.hora_inicio < hora_fin,
-    ).first()
-    if overlapping:
-        return jsonify({'error': 'RESERVAS: Ya existe una reserva en ese horario para la cancha seleccionada'}), 409
+        Reserva.fecha_reserva.in_(candidate_dates)
+    ).all()
+
+    def to_datetime_interval(res):
+        s = datetime.combine(res.fecha_reserva, res.hora_inicio)
+        e = datetime.combine(res.fecha_reserva, res.hora_fin)
+        if e <= s:
+            e = e + timedelta(days=1)
+        return s, e
+
+    for ex in existing_reservas:
+        s_ex, e_ex = to_datetime_interval(ex)
+        if dt_start < e_ex and s_ex < dt_end:
+            return jsonify({'error': 'RESERVAS: Ya existe una reserva en ese horario para la cancha seleccionada'}), 409
 
     # Verificar solapamientos con PARTIDOS en la misma cancha y fecha
-    partido_overlap = Partido.query.filter(
+    # Verificar solapamientos con PARTIDOS (incluir partido del día anterior que cruza medianoche)
+    existing_partidos = Partido.query.filter(
         Partido.id_cancha == id_cancha,
-        Partido.fecha_partido == fecha_reserva,
-        Partido.hora_fin > hora_inicio,
-        Partido.hora_inicio < hora_fin,
-    ).first()
-    if partido_overlap:
-        return jsonify({'error': 'PARTIDOS: Ya existe un partido en ese horario para la cancha seleccionada'}), 409
+        Partido.fecha_partido.in_(candidate_dates)
+    ).all()
+    def to_datetime_interval_part(p):
+        s = datetime.combine(p.fecha_partido, p.hora_inicio)
+        e = datetime.combine(p.fecha_partido, p.hora_fin)
+        if e <= s:
+            e = e + timedelta(days=1)
+        return s, e
+
+    for p in existing_partidos:
+        s_p, e_p = to_datetime_interval_part(p)
+        if dt_start < e_p and s_p < dt_end:
+            return jsonify({'error': 'PARTIDOS: Ya existe un partido en ese horario para la cancha seleccionada'}), 409
 
     # Calcular precio: precio_hora * duración + servicios + iluminación si aplica
     # duración en horas (decimal)
@@ -172,6 +224,15 @@ def list_reservas():
     reservas = q.all()
     out = []
     for r in reservas:
+        # incluir información de pago si existe (último pago registrado)
+        # obtener último pago registrado para esta reserva (si existe)
+        last_pago = None
+        pagos_res = Pago.query.filter_by(id_reserva=r.id_reserva).order_by(Pago.fecha_pago).all()
+        if pagos_res and len(pagos_res) > 0:
+            p = pagos_res[-1]
+            metodo = MetodoPago.query.get(p.id_metodo)
+            last_pago = {'id_pago': p.id_pago, 'id_metodo': p.id_metodo, 'metodo_nombre': metodo.nombre if metodo else None, 'monto': str(p.monto)}
+
         out.append({
             'id_reserva': r.id_reserva,
             'id_cliente': r.id_cliente,
@@ -183,7 +244,53 @@ def list_reservas():
             'hora_fin': r.hora_fin.strftime('%H:%M'),
             'precio_total': str(r.precio_total),
             'usa_iluminacion': bool(r.usa_iluminacion),
+            'pago': last_pago,
         })
+    return jsonify(out)
+
+
+@bp.route('/<int:id_reserva>', methods=['DELETE'])
+def delete_reserva(id_reserva):
+    r = Reserva.query.get(id_reserva)
+    if not r:
+        return jsonify({'error': 'Reserva no encontrada'}), 404
+    try:
+        db.session.delete(r)
+        db.session.commit()
+        return jsonify({'ok': True}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Error al eliminar reserva'}), 500
+
+
+@bp.route('/<int:id_reserva>', methods=['GET'])
+def get_reserva(id_reserva):
+    r = Reserva.query.get(id_reserva)
+    if not r:
+        return jsonify({'error': 'Reserva no encontrada'}), 404
+    servicios = []
+    for rs in r.reservas_servicios:
+        servicios.append({'id_servicio': rs.id_servicio, 'cantidad': rs.cantidad})
+    out = {
+        'id_reserva': r.id_reserva,
+        'id_cliente': r.id_cliente,
+        'id_cancha': r.id_cancha,
+        'fecha_reserva': r.fecha_reserva.isoformat(),
+        'hora_inicio': r.hora_inicio.strftime('%H:%M'),
+        'hora_fin': r.hora_fin.strftime('%H:%M'),
+        'usa_iluminacion': bool(r.usa_iluminacion),
+        'precio_total': str(r.precio_total),
+        'servicios_adicionales': servicios,
+        # incluir información de pago (último pago) para facilitar edición/pago desde el cliente
+        'pago': None
+    }
+    # buscar último pago asociado
+    pagos = Pago.query.filter_by(id_reserva=r.id_reserva).order_by(Pago.fecha_pago).all() if r else []
+    if pagos and len(pagos) > 0:
+        p = pagos[-1]
+        metodo = MetodoPago.query.get(p.id_metodo)
+        out['pago'] = {'id_pago': p.id_pago, 'id_metodo': p.id_metodo, 'metodo_nombre': metodo.nombre if metodo else None, 'monto': str(p.monto)}
+
     return jsonify(out)
 
 
@@ -202,24 +309,47 @@ def check_disponibilidad():
     except Exception:
         return jsonify({'error': 'Parámetros inválidos. id_cancha int, fecha: YYYY-MM-DD, horas: HH:MM'}), 400
 
-    if hora_inicio >= hora_fin:
-        return jsonify({'available': False, 'reason': 'hora_inicio_mayor_o_igual_hora_fin'}), 200
+    # Validar minutos en 00 o 30 y permitir cruce a día siguiente hasta 01:00
+    if hora_inicio.minute not in (0, 30) or hora_fin.minute not in (0, 30):
+        return jsonify({'available': False, 'reason': 'HORAS_DEBEN_TENER_00_O_30'}), 200
 
-    # Validar que las horas sean en punto y duración EXACTA de 1 hora
-    if hora_inicio.minute != 0 or hora_fin.minute != 0:
-        return jsonify({'available': False, 'reason': 'HORAS_DEBEN_SER_EN_PUNTO'}), 200
     dt_start = datetime.combine(fecha_reserva, hora_inicio)
     dt_end = datetime.combine(fecha_reserva, hora_fin)
-    if (dt_end - dt_start).total_seconds() != 3600:
-        return jsonify({'available': False, 'reason': 'DURACION_DEBE_SER_1_HORA'}), 200
+    if dt_end <= dt_start:
+        dt_end = dt_end + timedelta(days=1)
 
-    # rango permitido de inicio: 09:00 - 22:00 (hora_fin máxima 23:00)
-    if hora_inicio.hour < 9 or hora_inicio.hour > 22 or hora_fin.hour > 23:
-        return jsonify({'available': False, 'reason': 'HORARIO_FUERA_RANGO_09_22_START'}), 200
+    window_start = datetime.combine(fecha_reserva, datetime.strptime('10:00', '%H:%M').time())
+    window_end = datetime.combine(fecha_reserva + timedelta(days=1), datetime.strptime('01:00', '%H:%M').time())
+    if dt_start < window_start or dt_end > window_end:
+        return jsonify({'available': False, 'reason': 'HORARIO_FUERA_RANGO_10_01'}), 200
 
     cancha = Cancha.query.get(id_cancha)
     if not cancha or not cancha.activa:
         return jsonify({'available': False, 'reason': 'cancha_no_existente_o_inactiva'}), 200
+
+    # Duraciones por deporte
+    # determinar duración esperada por deporte
+    if getattr(cancha, 'deporte', None):
+        try:
+            duracion_minutos = int(cancha.deporte.duracion_minutos or 60)
+        except Exception:
+            duracion_minutos = 60
+    else:
+        deporte = (cancha.tipo_deporte or '').strip().lower()
+        DURACIONES_MIN = {
+            'padel': 60,
+            'pádel': 60,
+            'tenis': 120,
+            'futbol': 90,
+            'fútbol': 90,
+            'basket': 60,
+            'basquet': 60,
+            'baloncesto': 60,
+        }
+        duracion_minutos = DURACIONES_MIN.get(deporte, 60)
+    expected_end = dt_start + timedelta(minutes=duracion_minutos)
+    if expected_end != dt_end:
+        return jsonify({'available': False, 'reason': f'DURACION_ESPERADA_{duracion_minutos}_MIN'}), 200
 
     # Si hay horarios definidos para la cancha, validar que el horario solicitado esté contenido
     horarios = HorarioDisponible.query.filter_by(id_cancha=id_cancha).all()
@@ -235,24 +365,36 @@ def check_disponibilidad():
         if not ok:
             return jsonify({'available': False, 'reason': 'HORARIO_DISPONIBLE: La cancha no tiene un horario que cubra el intervalo solicitado'}), 200
 
-    # Verificar solapamientos con otras reservas
-    overlapping = Reserva.query.filter(
+    # Verificar solapamientos con otras reservas y partidos (considerar día anterior para cruces de medianoche)
+    candidate_dates = [fecha_reserva, fecha_reserva - timedelta(days=1)]
+    existing_reservas = Reserva.query.filter(
         Reserva.id_cancha == id_cancha,
-        Reserva.fecha_reserva == fecha_reserva,
-        Reserva.hora_fin > hora_inicio,
-        Reserva.hora_inicio < hora_fin,
-    ).first()
-    if overlapping:
-        return jsonify({'available': False, 'reason': 'RESERVAS: Ya existe una reserva en ese horario para la cancha seleccionada'}), 200
+        Reserva.fecha_reserva.in_(candidate_dates)
+    ).all()
+    def to_dt_interval_res(res):
+        s = datetime.combine(res.fecha_reserva, res.hora_inicio)
+        e = datetime.combine(res.fecha_reserva, res.hora_fin)
+        if e <= s:
+            e = e + timedelta(days=1)
+        return s, e
+    for ex in existing_reservas:
+        s_ex, e_ex = to_dt_interval_res(ex)
+        if dt_start < e_ex and s_ex < dt_end:
+            return jsonify({'available': False, 'reason': 'RESERVAS: Ya existe una reserva en ese horario para la cancha seleccionada'}), 200
 
-    # Verificar solapamientos con PARTIDOS
-    partido_overlap = Partido.query.filter(
+    existing_partidos = Partido.query.filter(
         Partido.id_cancha == id_cancha,
-        Partido.fecha_partido == fecha_reserva,
-        Partido.hora_fin > hora_inicio,
-        Partido.hora_inicio < hora_fin,
-    ).first()
-    if partido_overlap:
-        return jsonify({'available': False, 'reason': 'PARTIDOS: Ya existe un partido en ese horario para la cancha seleccionada'}), 200
+        Partido.fecha_partido.in_(candidate_dates)
+    ).all()
+    def to_dt_interval_part(p):
+        s = datetime.combine(p.fecha_partido, p.hora_inicio)
+        e = datetime.combine(p.fecha_partido, p.hora_fin)
+        if e <= s:
+            e = e + timedelta(days=1)
+        return s, e
+    for p in existing_partidos:
+        s_p, e_p = to_dt_interval_part(p)
+        if dt_start < e_p and s_p < dt_end:
+            return jsonify({'available': False, 'reason': 'PARTIDOS: Ya existe un partido en ese horario para la cancha seleccionada'}), 200
 
     return jsonify({'available': True}), 200

@@ -13,4 +13,5 @@ def list_servicios():
         'nombre': s.nombre,
         'precio_adicional': str(s.precio_adicional),
         'activo': s.activo,
+        'id_deporte': s.id_deporte,
     } for s in items])

@@ -1,54 +1,99 @@
-<!doctype html>
-<html lang="es">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Reportes - Reservas</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-      .chart-card { min-height: 320px; }
-    </style>
-  </head>
-  <body class="bg-light">
-    <div class="container py-4">
-      <h1 class="mb-4">Reportes</h1>
+{% extends 'base.html' %}
 
-      <div class="row mb-4">
-        <div class="col-md-6">
-          <div class="card chart-card">
-            <div class="card-body">
-              <h5 class="card-title">Ranking de canchas (más usadas)</h5>
-              <canvas id="chart-ranking"></canvas>
-              <div id="ranking-msg" class="mt-2 text-muted small"></div>
-            </div>
-          </div>
-        </div>
+{% block title %}Reportes - Reservas{% endblock %}
 
-        <div class="col-md-6">
-          <div class="card chart-card">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <h5 class="card-title mb-0">Uso mensual</h5>
-                <div>
-                  <label for="year-select" class="form-label small mb-0 me-2">Año</label>
-                  <select id="year-select" class="form-select form-select-sm d-inline-block" style="width:100px"></select>
-                </div>
-              </div>
-              <canvas id="chart-uso"></canvas>
-              <div id="uso-msg" class="mt-2 text-muted small"></div>
-            </div>
+{% block head_extra %}
+  <style>
+    .chart-card { min-height: 320px; }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <div class="py-4">
+    <h1 class="mb-4">Reportes</h1>
+
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <div class="card chart-card">
+          <div class="card-body">
+            <h5 class="card-title">Ranking de canchas (más usadas)</h5>
+            <canvas id="chart-ranking"></canvas>
+            <div id="ranking-msg" class="mt-2 text-muted small"></div>
           </div>
         </div>
       </div>
 
-      <div class="row">
-        <div class="col-12 text-end">
-          <a href="/" class="btn btn-outline-secondary">Volver</a>
+      <div class="col-md-6">
+        <div class="card chart-card">
+          <div class="card-body">
+            <div class="report-card-header mb-2">
+              <div class="report-title-row">
+                <h5 class="card-title mb-0">Uso mensual</h5>
+              </div>
+              <div class="report-controls-row">
+                <div class="card-header-controls d-flex align-items-center gap-2 ms-auto">
+                  <label for="year-select" class="form-label small mb-0">Año</label>
+                  <select id="year-select" class="form-select form-select-sm d-inline-block" style="width:100px"></select>
+                </div>
+              </div>
+            </div>
+            <canvas id="chart-uso"></canvas>
+            <div id="uso-msg" class="mt-2 text-muted small"></div>
+          </div>
         </div>
       </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <div class="row mb-4">
+      <div class="col-md-6">
+        <div class="card chart-card">
+          <div class="card-body">
+            <div class="report-card-header mb-2">
+              <div class="report-title-row">
+                <h5 class="card-title mb-0">Reservas por cliente</h5>
+              </div>
+              <div class="report-controls-row">
+                <div class="card-header-controls d-flex align-items-center gap-2 ms-auto">
+                  <select id="cliente-select" class="form-select form-select-sm"></select>
+                </div>
+              </div>
+            </div>
+            <canvas id="chart-reservas-cliente"></canvas>
+            <div id="cliente-list" class="mt-2 small text-muted"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="card chart-card">
+          <div class="card-body">
+            <div class="report-card-header mb-2">
+              <div class="report-title-row">
+                <h5 class="card-title mb-0">Reservas por cancha (periodo)</h5>
+              </div>
+            </div>
+            <div class="report-toolbar mb-3">
+              <div class="card-header-controls d-flex align-items-center gap-2">
+                <select id="cancha-select" class="form-select form-select-sm" style="width:160px"></select>
+                <label for="desde" class="form-label small mb-0">Desde</label>
+                <input id="desde" type="date" class="form-control form-control-sm" style="width:140px">
+                <label for="hasta" class="form-label small mb-0">Hasta</label>
+                <input id="hasta" type="date" class="form-control form-control-sm" style="width:140px">
+                <button id="btn-load-cancha" class="btn btn-sm btn-primary">Cargar</button>
+              </div>
+            </div>
+            <canvas id="chart-reservas-cancha"></canvas>
+            <div id="cancha-list" class="mt-2 small text-muted"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- footer actions removed (floating back button available) -->
+  </div>
+{% endblock %}
+
+{% block scripts %}
     <script>
       const API_RANKING = '/api/reportes/ranking_canchas';
       const API_USO = '/api/reportes/uso_mensual';
@@ -151,7 +196,93 @@
         populateYearSelect();
         loadRanking();
         loadUso(document.getElementById('year-select').value);
+        // initialize new reports
+        initReservasPorCliente();
+        initReservasPorCancha();
       });
+
+      // --- New report: reservas por cliente ---
+      let clienteChart = null;
+      async function initReservasPorCliente(){
+        const sel = document.getElementById('cliente-select');
+        sel.innerHTML = '<option value="">Seleccionar cliente...</option>';
+        const clients = await fetchJson('/api/clientes') || [];
+        clients.forEach(c => { const opt = document.createElement('option'); opt.value = c.id_cliente; opt.text = `${c.nombre} ${c.apellido}`; sel.appendChild(opt); });
+        sel.addEventListener('change', ()=> loadReservasPorCliente(sel.value));
+      }
+
+      async function loadReservasPorCliente(id_cliente){
+        const placeholder = document.getElementById('cliente-list');
+        const ctx = document.getElementById('chart-reservas-cliente').getContext('2d');
+        if(!id_cliente){ placeholder.textContent = 'Seleccione un cliente para ver sus reservas.'; if(clienteChart) clienteChart.destroy(); return; }
+        const data = await fetchJson(`/api/reportes/reservas_por_cliente?id_cliente=${id_cliente}`);
+        if(!data || !data.reservas){ placeholder.textContent = 'No hay reservas para este cliente.'; if(clienteChart) clienteChart.destroy(); return; }
+        // aggregate by month
+        const counts = {};
+        data.reservas.forEach(r => { const m = r.fecha_reserva ? r.fecha_reserva.slice(0,7) : 'unknown'; counts[m] = (counts[m]||0) + 1; });
+        const labels = Object.keys(counts).sort();
+        const values = labels.map(l => counts[l]);
+        if(clienteChart) clienteChart.destroy();
+        clienteChart = new Chart(ctx, { type:'bar', data:{ labels, datasets:[{ label:'Reservas', data:values, backgroundColor:'rgba(75,192,192,0.6)' }] }, options:{ plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, precision:0 } } } });
+        // list recent reservations
+        const listHtml = data.reservas.map(r => `${r.fecha_reserva} ${r.hora_inicio} - ${r.hora_fin} (Cancha: ${r.cancha_nombre||r.id_cancha})`).join('<br>');
+        placeholder.innerHTML = listHtml || 'Sin reservas';
+      }
+
+      // --- New report: reservas por cancha en periodo ---
+      let canchaChart = null;
+      async function initReservasPorCancha(){
+        const sel = document.getElementById('cancha-select');
+        sel.innerHTML = '<option value="">Seleccionar cancha...</option>';
+        const canchas = await fetchJson('/api/canchas') || [];
+        canchas.forEach(c => { const opt = document.createElement('option'); opt.value = c.id_cancha; opt.text = c.nombre; sel.appendChild(opt); });
+        // set default date range: last 30 days
+        const hoy = new Date();
+        const hastaInput = document.getElementById('hasta');
+        const desdeInput = document.getElementById('desde');
+        function fmtDate(d){ return d.toISOString().slice(0,10); }
+        hastaInput.value = fmtDate(hoy);
+        const desdeDefault = new Date(hoy.getTime() - (30*24*60*60*1000));
+        desdeInput.value = fmtDate(desdeDefault);
+
+        // if there is at least one cancha, preselect the first and load data
+        if(canchas.length>0){ sel.value = canchas[0].id_cancha; }
+
+        document.getElementById('btn-load-cancha').addEventListener('click', async ()=>{
+          const id = document.getElementById('cancha-select').value;
+          const desde = document.getElementById('desde').value;
+          const hasta = document.getElementById('hasta').value;
+          // validate inputs
+          const placeholder = document.getElementById('cancha-list');
+          if(!id){ placeholder.textContent = 'Seleccione una cancha para cargar el reporte.'; return; }
+          if(desde && hasta && desde > hasta){ placeholder.textContent = 'El rango de fechas es inválido: la fecha "desde" es posterior a "hasta".'; return; }
+          placeholder.textContent = 'Cargando...';
+          await loadReservasPorCancha(id, desde, hasta);
+        });
+
+        // load automatically for the preselected cancha
+        if(sel.value){ document.getElementById('btn-load-cancha').click(); }
+      }
+
+      async function loadReservasPorCancha(id_cancha, desde, hasta){
+        const placeholder = document.getElementById('cancha-list');
+        const ctx = document.getElementById('chart-reservas-cancha').getContext('2d');
+        if(!id_cancha){ placeholder.textContent = 'Seleccione una cancha y rango de fechas.'; if(canchaChart) canchaChart.destroy(); return; }
+        let q = `?id_cancha=${id_cancha}`;
+        if(desde) q += `&desde=${desde}`;
+        if(hasta) q += `&hasta=${hasta}`;
+        const data = await fetchJson('/api/reportes/reservas_por_cancha' + q);
+        if(!data || !data.reservas || data.reservas.length===0){ placeholder.textContent = 'No hay reservas en el periodo seleccionado.'; if(canchaChart) canchaChart.destroy(); return; }
+        // aggregate by date
+        const counts = {};
+        data.reservas.forEach(r => { const d = r.fecha_reserva || 'unknown'; counts[d] = (counts[d]||0) + 1; });
+        const labels = Object.keys(counts).sort();
+        const values = labels.map(l => counts[l]);
+        if(canchaChart) canchaChart.destroy();
+        canchaChart = new Chart(ctx, { type:'line', data:{ labels, datasets:[{ label:'Reservas', data:values, borderColor:'rgba(54,162,235,0.9)', backgroundColor:'rgba(54,162,235,0.2)', fill:true }] }, options:{ plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true, precision:0 } } } });
+        // list reservations
+        const rows = data.reservas.map(r => `${r.fecha_reserva} ${r.hora_inicio}-${r.hora_fin} — ${r.cliente||r.id_cliente} ($${r.precio_total||''})`).join('<br>');
+        placeholder.innerHTML = rows;
+      }
     </script>
-  </body>
-</html>
+{% endblock %}

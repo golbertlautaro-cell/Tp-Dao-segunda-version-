@@ -10,7 +10,7 @@ Ejecutar::
     python seed.py
 """
 from app import create_app, db
-from models import Cliente, Cancha, EstadoReserva, ServicioAdicional, MetodoPago
+from models import Cliente, Cancha, EstadoReserva, ServicioAdicional, MetodoPago, Deporte
 from datetime import date
 
 
@@ -31,14 +31,29 @@ def seed():
             print('Clientes ya existentes, se omite inserción')
 
         if Cancha.query.count() == 0:
+            # Crear deportes por defecto
+            futbol = Deporte(nombre='Fútbol', duracion_minutos=90)
+            tenis = Deporte(nombre='Tenis', duracion_minutos=120)
+            padel = Deporte(nombre='Pádel', duracion_minutos=60)
+            db.session.add_all([futbol, tenis, padel])
+            db.session.flush()
+
             canchas = [
-                Cancha(nombre='Cancha Central', tipo_deporte='Fútbol', superficie='Césped', precio_hora=200, iluminacion=True),
-                Cancha(nombre='Cancha 2', tipo_deporte='Tenis', superficie='Cemento', precio_hora=100, iluminacion=False),
+                Cancha(nombre='Cancha Central', tipo_deporte='Fútbol', id_deporte=futbol.id_deporte, superficie='Césped', precio_hora=200, iluminacion=True),
+                Cancha(nombre='Cancha 2', tipo_deporte='Tenis', id_deporte=tenis.id_deporte, superficie='Cemento', precio_hora=100, iluminacion=False),
             ]
             db.session.add_all(canchas)
             print('Añadidas 2 canchas')
         else:
             print('Canchas ya existentes, se omite inserción')
+
+        # Asegurarse de que existan deportes aunque ya haya canchas (caso de DB parcial)
+        if Deporte.query.count() == 0:
+            futbol = Deporte(nombre='Fútbol', duracion_minutos=90)
+            tenis = Deporte(nombre='Tenis', duracion_minutos=120)
+            padel = Deporte(nombre='Pádel', duracion_minutos=60)
+            db.session.add_all([futbol, tenis, padel])
+            print('Se añadieron deportes por defecto')
 
         if EstadoReserva.query.count() == 0:
             estados = [
@@ -51,12 +66,31 @@ def seed():
             print('Estados de reserva ya existentes, se omite inserción')
 
         if ServicioAdicional.query.count() == 0:
+            # Crear servicios generales y por deporte
+            # Asegurar que los deportes referenciados existen y obtener sus ids
+            futbol = Deporte.query.filter_by(nombre='Fútbol').first()
+            tenis = Deporte.query.filter_by(nombre='Tenis').first()
+            padel = Deporte.query.filter_by(nombre='Pádel').first()
+
             servicios = [
-                ServicioAdicional(nombre='Pelota', precio_adicional=50),
-                ServicioAdicional(nombre='Chalecos', precio_adicional=30),
+                # Servicios globales
+                ServicioAdicional(nombre='Pelota', precio_adicional=50, id_deporte=None),
+                ServicioAdicional(nombre='Chalecos', precio_adicional=30, id_deporte=None),
+                # Tenis
+                ServicioAdicional(nombre='Pelotas (set x3)', precio_adicional=150, id_deporte=(tenis.id_deporte if tenis else None)),
+                ServicioAdicional(nombre='Máquina de pelotas (por hora)', precio_adicional=800, id_deporte=(tenis.id_deporte if tenis else None)),
+                ServicioAdicional(nombre='Entrenador privado (por hora)', precio_adicional=1000, id_deporte=(tenis.id_deporte if tenis else None)),
+                # Pádel
+                ServicioAdicional(nombre='Paleta (alquiler)', precio_adicional=200, id_deporte=(padel.id_deporte if padel else None)),
+                ServicioAdicional(nombre='Pelotas (set x3)', precio_adicional=150, id_deporte=(padel.id_deporte if padel else None)),
+                ServicioAdicional(nombre='Entrenador privado (por hora)', precio_adicional=900, id_deporte=(padel.id_deporte if padel else None)),
+                # Fútbol
+                ServicioAdicional(nombre='Balón (alquiler)', precio_adicional=300, id_deporte=(futbol.id_deporte if futbol else None)),
+                ServicioAdicional(nombre='Árbitro (por partido)', precio_adicional=1200, id_deporte=(futbol.id_deporte if futbol else None)),
+                ServicioAdicional(nombre='Iluminación (por hora)', precio_adicional=400, id_deporte=(futbol.id_deporte if futbol else None)),
             ]
             db.session.add_all(servicios)
-            print('Añadidos 2 servicios adicionales')
+            print('Añadidos servicios adicionales por deporte y globales')
         else:
             print('Servicios adicionales ya existentes, se omite inserción')
 

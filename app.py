@@ -72,6 +72,12 @@ def create_app(test_config=None):
             pass
 
         try:
+            from routes_deporte import bp as deportes_bp
+            app.register_blueprint(deportes_bp, url_prefix='/api/deportes')
+        except Exception:
+            pass
+
+        try:
             from routes_reserva import bp as reservas_bp
             app.register_blueprint(reservas_bp, url_prefix='/api/reservas')
         except Exception:
@@ -106,6 +112,17 @@ def create_app(test_config=None):
         # Rutas para servir las plantillas (UI)
         try:
             from flask import render_template
+
+            @app.route('/ui')
+            @app.route('/ui/')
+            def ui_root():
+                # Página principal del panel de administración
+                return render_template('dashboard.html')
+
+            @app.route('/ui/dashboard')
+            def ui_dashboard():
+                return render_template('dashboard.html')
+
             @app.route('/ui/clientes')
             def ui_clientes():
                 return render_template('clientes.html')
@@ -114,6 +131,10 @@ def create_app(test_config=None):
             def ui_canchas():
                 return render_template('canchas.html')
 
+            @app.route('/ui/deportes')
+            def ui_deportes():
+                return render_template('deportes.html')
+
             @app.route('/ui/reservar')
             def ui_reservar():
                 return render_template('reservar.html')
@@ -122,25 +143,10 @@ def create_app(test_config=None):
             def ui_reportes():
                 return render_template('reportes.html')
 
-            @app.route('/ui')
-            def ui_index():
-                return render_template('dashboard.html')
-            
-            @app.route('/ui/reservar')
-            def ui_reservar():
-                return render_template('reservar.html')
-
-            @app.route('/ui/reportes')
-            def ui_reportes():
-                return render_template('reportes.html')
-            
-            @app.route('/ui/reservar')
-            def ui_reservar():
-                return render_template('reservar.html')
-
-            @app.route('/ui/reportes')
-            def ui_reportes():
-                return render_template('reportes.html')
+            @app.route('/ui/pagos')
+            def ui_pagos():
+                # Página de pagos (lista / gestión). Plantilla básica si no está implementada aún.
+                return render_template('pagos.html')
         except Exception:
             pass
 

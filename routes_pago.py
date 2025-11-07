@@ -45,3 +45,13 @@ def pagar_reserva(id_reserva):
     db.session.commit()
 
     return jsonify({'id_pago': pago.id_pago, 'id_reserva': id_reserva, 'monto': str(pago.monto)}), 201
+
+
+@bp.route('/api/metodos', methods=['GET'])
+def list_metodos():
+    """Retorna los métodos de pago disponibles."""
+    items = MetodoPago.query.all()
+    return jsonify([{
+        'id_metodo': m.id_metodo,
+        'nombre': m.nombre
+    } for m in items])

@@ -1,0 +1,235 @@
+:root{
+  /* Palette */
+  /* Light theme with blue/violet accents */
+  --bg: #f4f8ff; /* very light blue background */
+  --bg-soft: #eaf2ff;
+  --card: #ffffff; /* white cards for good contrast */
+  --muted: #6b7280; /* neutral gray for secondary text */
+  /* Chromatic accents (light blue / violet) */
+  --accent: #6366f1; /* indigo-500 (violet-ish) */
+  --accent-2: #60a5fa; /* sky-400 (light blue) */
+  --glass: rgba(255,255,255,0.03);
+  --glass-2: rgba(255,255,255,0.02);
+  --success: #10b981;
+  --danger: #ef4444;
+}
+body{
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  background: var(--bg);
+  color: #0f172a; /* dark text for readability */
+  -webkit-font-smoothing:antialiased;
+}
+.navbar-brand{ color:var(--accent) !important; letter-spacing:0.3px }
+.card{ border:0; border-radius:14px; box-shadow: 0 10px 40px rgba(2,6,23,0.6); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); backdrop-filter: blur(6px); }
+.card{ border:0; border-radius:12px; box-shadow: 0 6px 20px rgba(15,23,42,0.06); background: var(--card); }
+.container h1{ font-weight:700; color:#f8fafc; }
+.container h1{ font-weight:700; color:#0b1220; }
+.list-group-item{ border-radius:10px; margin-bottom:8px; background:var(--glass); border:1px solid rgba(255,255,255,0.03); }
+.list-group-item{ border-radius:8px; margin-bottom:8px; background: #fff; border:1px solid rgba(15,23,42,0.04); }
+
+/* Hero / header accent */
+.hero{ padding:28px; border-radius:14px; background: linear-gradient(135deg, rgba(99,102,241,0.12), rgba(96,165,250,0.08)); box-shadow: 0 10px 40px rgba(7,10,25,0.6); margin-bottom:20px; }
+.hero{ padding:22px; border-radius:10px; background: linear-gradient(135deg, rgba(99,102,241,0.14), rgba(96,165,250,0.06)); box-shadow: 0 8px 22px rgba(15,23,42,0.06); margin-bottom:18px; }
+.hero h2{ color: #fff; margin:0 0 6px 0 }
+.hero h2{ color: #07112a; margin:0 0 6px 0 }
+.hero p{ color: var(--muted); margin:0 }
+.hero p{ color: var(--muted); margin:0 }
+
+/* Buttons */
+.btn-primary{
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  border:0; box-shadow: 0 8px 22px rgba(99,102,241,0.12);
+  color: #fff;
+  transition: transform .12s ease, box-shadow .12s ease, opacity .1s;
+}
+.btn-primary:hover{ transform: translateY(-3px) scale(1.02); box-shadow: 0 14px 36px rgba(99,102,241,0.22); }
+.btn-primary:hover{ transform: translateY(-2px); box-shadow: 0 12px 28px rgba(99,102,241,0.16); }
+.btn-outline-light{ border-color: rgba(255,255,255,0.06); }
+
+/* Cards micro-interaction */
+.card:hover{ transform: translateY(-6px); transition: transform .22s cubic-bezier(.2,.9,.2,1); }
+
+/* Ensure card content cannot overflow its rounded corners */
+.card{ overflow: hidden; }
+
+/* Allow chart cards to show toolbar controls and dropdowns without clipping */
+.chart-card{ overflow: visible !important; }
+.chart-card .card-body{ overflow: visible; }
+
+/* Card body layout and header/title rules to prevent title escaping */
+.card .card-body{ position: relative; padding: 1.25rem; }
+.card .card-body .card-title{
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.25;
+  white-space: normal;
+  word-break: break-word;
+  /* Let title grow and take available space; avoid artificial small max-width */
+  flex: 1 1 auto !important;
+  max-width: none !important;
+  writing-mode: horizontal-tb !important;
+  transform: none !important;
+  display: block;
+}
+.card .card-body .card-header-controls{
+  flex: 0 0 auto !important;
+  justify-content: flex-end;
+}
+
+/* Report card header: two-row layout to guarantee title stays inside the card
+   Title row takes full width; controls row aligns controls to the right and allows wrapping on small screens */
+.report-card-header{ display:block; }
+.report-card-header .report-title-row{ width:100%; }
+.report-card-header .report-title-row .card-title{ display:block; width:100%; white-space:normal; word-break:break-word; }
+.report-card-header .report-controls-row{ width:100%; display:flex; justify-content:flex-end; margin-top:8px; }
+.report-card-header .report-controls-row .card-header-controls{ flex-wrap:wrap; justify-content:flex-end; }
+
+/* Ensure controls are not cut off: give header area extra top padding and stacking context */
+.report-card-header{ padding-top: 6px; position: relative; z-index: 6; }
+.report-card-header .report-controls-row{ min-height:44px; align-items:center; }
+.card-header-controls{ position: relative; z-index: 10; }
+.card .card-body canvas{ position: relative; z-index: 1; }
+
+/* Make selects and inputs a bit taller for consistent visuals */
+.card-header-controls .form-select, .card-header-controls .form-control{ height: calc(1.6rem + 12px); padding: .25rem .5rem; }
+
+/* Toolbar above charts to host controls cleanly */
+.report-toolbar{ width:100%; display:flex; justify-content:flex-end; align-items:center; padding-bottom:6px; }
+.report-toolbar .card-header-controls{ gap:10px; }
+@media (max-width:991px){
+  .report-toolbar{ flex-direction:column; align-items:flex-start; gap:8px; }
+  .report-toolbar .card-header-controls{ width:100%; }
+}
+
+
+@media (max-width: 991px){
+  /* On medium and small screens allow header controls to wrap under the title */
+  .card-header-controls{ flex-wrap:wrap; gap:8px; width:100%; margin-top:8px; }
+  .card .card-body .card-title{ max-width:100%; }
+}
+
+/* Nav link active / hover */
+.nav-link{ color: rgba(230,238,248,0.9); transition: color .12s ease; }
+.nav-link{ color: #0b1220; transition: color .12s ease; }
+.nav-link:hover{ color: #fff; }
+.nav-link:hover{ color: var(--accent); }
+.nav-link.active{ color:var(--accent); font-weight:600; }
+.nav-link.active{ color:var(--accent); font-weight:600; }
+
+/* Reveal on scroll */
+.reveal{ opacity:0; transform: translateY(18px); transition: opacity .6s ease, transform .6s ease; }
+.reveal{ opacity:0; transform: translateY(12px); transition: opacity .42s ease, transform .42s ease; }
+.reveal.visible{ opacity:1; transform: translateY(0); }
+.reveal.visible{ opacity:1; transform: translateY(0); }
+
+/* Spinner */
+.spinner{ width:40px; height:40px; border-radius:50%; border:4px solid rgba(255,255,255,0.06); border-top-color:var(--accent); animation: spin 1s linear infinite; margin:auto; }
+.spinner{ width:36px; height:36px; border-radius:50%; border:4px solid rgba(11,18,34,0.08); border-top-color:var(--accent); animation: spin 1s linear infinite; margin:auto; }
+@keyframes spin{ to { transform: rotate(360deg); } }
+@keyframes spin{ to { transform: rotate(360deg); } }
+
+/* Badge pulse */
+.badge-animated{ background: linear-gradient(90deg,var(--accent),var(--accent-2)); color:#fff; box-shadow: 0 6px 18px rgba(6,182,212,0.12); animation: pulse 2.6s infinite; }
+.badge-animated{ background: linear-gradient(90deg,var(--accent),var(--accent-2)); color:#fff; box-shadow: 0 6px 18px rgba(99,102,241,0.08); animation: pulse 2.6s infinite; }
+@keyframes pulse{ 0%{ transform: scale(1); } 50%{ transform: scale(1.04); } 100%{ transform: scale(1); } }
+
+.chart-card{ min-height:320px; }
+
+/* Ripple effect for buttons (added dynamically by ui.js) */
+.btn{ position: relative; overflow: hidden; }
+.ripple{ position: absolute; border-radius: 50%; background: rgba(255,255,255,0.12); transform: scale(0); animation: ripple .6s linear; pointer-events:none; }
+@keyframes ripple{ to { transform: scale(4); opacity:0; } }
+
+/* responsive tweaks */
+@media (max-width:767px){
+  .d-flex.gap-2.align-items-center .form-label{ display:block; font-size:0.95rem; }
+  .hero{ padding:18px }
+}
+
+/* Floating back button */
+.floating-back{
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 1100;
+  border-radius: 10px;
+  padding: 6px 10px;
+  box-shadow: 0 6px 18px rgba(11,18,34,0.06);
+  backdrop-filter: blur(4px);
+  transition: transform .12s ease, opacity .12s ease, left .12s ease;
+  background: rgba(255,255,255,0.96);
+  color: var(--accent);
+  border: 1px solid rgba(11,18,34,0.06);
+}
+.floating-back:hover{ transform: translateY(-3px); }
+
+@media (max-width:576px){
+  .floating-back{ left: 10px; bottom: 12px; padding:8px; }
+  .floating-back span{ display:none !important; }
+}
+
+/* Fix: ensure 'Cargar' button in reportes stays inline and not rotated/floated */
+#btn-load-cancha{
+  position: relative !important;
+  transform: none !important;
+  writing-mode: horizontal-tb !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center;
+  margin-left: 6px;
+}
+
+/* If any stylesheet rotated text on the right edge, hide that variant on desktop */
+.cargar-vertical, .btn-vertical{ display:none !important; }
+
+/* Strong reset: ensure buttons inside cards stay in the normal flow */
+.card .card-body button,
+.card .card-body .btn{
+  position: relative !important;
+  transform: none !important;
+  writing-mode: horizontal-tb !important;
+  right: auto !important;
+  left: auto !important;
+  top: auto !important;
+  bottom: auto !important;
+}
+
+/* Card header controls: allow wrapping and constrain widths to avoid overflowing the card */
+.card-header-controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; max-width:100%; box-sizing:border-box; }
+.card-header-controls > *{ flex: 0 0 auto; }
+.card-header-controls .form-control, .card-header-controls .form-select{ min-width: 80px; }
+.card-header-controls label{ white-space:nowrap; margin-bottom:0; }
+
+/* Ensure form controls in card headers are clearly visible on the light card background */
+.card-header-controls .form-select,
+.card-header-controls .form-control{
+  background: #fff !important;
+  color: #0b1220 !important;
+  border: 1px solid rgba(11,18,34,0.06) !important;
+  box-shadow: none !important;
+  z-index: 5;
+}
+.card-header-controls .form-select option{ color: #0b1220; }
+
+/* If the controls end up overflowing, ensure they wrap below the title on small screens */
+@media (max-width: 991px){
+  .report-card-header .report-controls-row{ justify-content:flex-start; }
+  .card-header-controls .form-select, .card-header-controls .form-control{ width:100% !important; max-width: 320px; }
+}
+
+/* Fix for small green 'Agregar' buttons in deportes list */
+.btn-add-svc{
+  min-width: 74px !important;
+  padding: .28rem .6rem !important;
+  white-space: nowrap !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  line-height: 1 !important;
+  border-radius: 6px !important;
+}
+/* Ensure small success-outline variants keep text on one line */
+.table .btn-sm{ white-space: nowrap; }
+
+/* Minor spacing to separate charts visually */
+.chart-card{ padding: 12px; }
