@@ -36,6 +36,12 @@
                 <label class="form-label">Email</label>
                 <input type="email" id="email" class="form-control">
               </div>
+              <div class="col-md-2">
+                <div class="form-check mt-3">
+                  <input class="form-check-input" type="checkbox" id="activo" checked>
+                  <label class="form-check-label">Activo</label>
+                </div>
+              </div>
 
               <div class="col-12">
                 <button class="btn btn-primary" id="btn-submit">Registrar</button>
@@ -49,6 +55,10 @@
       <div class="card">
         <div class="card-body">
           <h5 class="card-title">Clientes</h5>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="show-inactivos">
+            <label class="form-check-label" for="show-inactivos">Mostrar inactivos</label>
+          </div>
           <div class="table-responsive">
             <table class="table table-striped" id="clientes-table">
               <thead>
@@ -75,7 +85,9 @@
       const API_BASE = '/api/clientes';
 
       async function loadClientes(){
-        const res = await fetch(API_BASE);
+        const showInactive = document.getElementById('show-inactivos') && document.getElementById('show-inactivos').checked;
+        const url = API_BASE + (showInactive ? '?all=true' : '');
+        const res = await fetch(url);
         const data = await res.json();
         const tbody = document.querySelector('#clientes-table tbody');
         tbody.innerHTML = '';
@@ -103,7 +115,8 @@
 
       async function onDelete(e){
         const id = e.target.dataset.id;
-        if(!confirm('¿Desactivar cliente?')) return;
+        if(!confirm('¿Eliminar DEFINITIVAMENTE al cliente? Esta acción será irreversible.')) return;
+        // DELETE por defecto realiza hard-delete (físico). Para soft-delete usar ?hard=false
         await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
         await loadClientes();
       }
@@ -115,6 +128,7 @@
         document.getElementById('apellido').value = c.apellido;
         document.getElementById('telefono').value = c.telefono || '';
         document.getElementById('email').value = c.email || '';
+        document.getElementById('activo').checked = c.activo === undefined ? true : !!c.activo;
         document.getElementById('btn-submit').textContent = 'Actualizar';
       }
 
@@ -134,6 +148,7 @@
           apellido: document.getElementById('apellido').value.trim(),
           telefono: document.getElementById('telefono').value.trim(),
           email: document.getElementById('email').value.trim() || null,
+          activo: document.getElementById('activo').checked
         };
 
         let res;
@@ -163,13 +178,15 @@
       function resetForm(){
         document.getElementById('editingId').value = '';
         document.getElementById('cliente-form').reset();
+        document.getElementById('activo').checked = true;
         document.getElementById('btn-submit').textContent = 'Registrar';
       }
 
       document.getElementById('btn-reset').addEventListener('click', resetForm);
 
       // Inicializar
-      loadClientes();
+  document.getElementById('show-inactivos').addEventListener('change', loadClientes);
+  loadClientes();
     </script>
 
   </body>

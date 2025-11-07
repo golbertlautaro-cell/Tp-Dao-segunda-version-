@@ -39,6 +39,13 @@
                 </div>
               </div>
 
+              <div class="col-md-2">
+                <div class="form-check mt-3">
+                  <input class="form-check-input" type="checkbox" id="activa" checked>
+                  <label class="form-check-label">Activa</label>
+                </div>
+              </div>
+
               <div class="col-12">
                 <button class="btn btn-primary" id="btn-submit">Guardar</button>
                 <button type="button" class="btn btn-secondary" id="btn-reset">Limpiar</button>
@@ -49,8 +56,12 @@
       </div>
 
       <div class="card">
-        <div class="card-body">
+          <div class="card-body">
           <h5 class="card-title">Canchas</h5>
+          <div class="form-check form-switch mb-2">
+            <input class="form-check-input" type="checkbox" id="show-inactivos">
+            <label class="form-check-label" for="show-inactivos">Mostrar inactivos</label>
+          </div>
           <div class="table-responsive">
             <table class="table table-striped" id="canchas-table">
               <thead>
@@ -77,7 +88,9 @@
       const API_BASE = '/api/canchas';
 
       async function loadCanchas(){
-        const res = await fetch(API_BASE);
+        const showInactive = document.getElementById('show-inactivos') && document.getElementById('show-inactivos').checked;
+        const url = API_BASE + (showInactive ? '?all=true' : '');
+        const res = await fetch(url);
         const data = await res.json();
         const tbody = document.querySelector('#canchas-table tbody');
         tbody.innerHTML = '';
@@ -105,7 +118,8 @@
 
       async function onDelete(e){
         const id = e.target.dataset.id;
-        if(!confirm('¿Desactivar cancha?')) return;
+        if(!confirm('¿Eliminar DEFINITIVAMENTE la cancha? Esta acción será irreversible.')) return;
+        // DELETE por defecto hace hard-delete (físico). Para soft-delete usar ?hard=false
         await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
         await loadCanchas();
       }
@@ -117,6 +131,7 @@
         document.getElementById('superficie').value = c.superficie || '';
         document.getElementById('precio_hora').value = c.precio_hora || '';
         document.getElementById('iluminacion').checked = !!c.iluminacion;
+        document.getElementById('activa').checked = c.activa === undefined ? true : !!c.activa;
         document.getElementById('btn-submit').textContent = 'Actualizar';
       }
 
@@ -135,7 +150,8 @@
           tipo_deporte: document.getElementById('tipo_deporte').value.trim() || null,
           superficie: document.getElementById('superficie').value.trim() || null,
           precio_hora: document.getElementById('precio_hora').value ? parseFloat(document.getElementById('precio_hora').value) : 0,
-          iluminacion: document.getElementById('iluminacion').checked
+          iluminacion: document.getElementById('iluminacion').checked,
+          activa: document.getElementById('activa').checked
         };
 
         let res;
@@ -170,8 +186,9 @@
 
       document.getElementById('btn-reset').addEventListener('click', resetForm);
 
-      // Inicializar
-      loadCanchas();
+  // Inicializar
+  document.getElementById('show-inactivos').addEventListener('change', loadCanchas);
+  loadCanchas();
     </script>
   </body>
 </html>
